@@ -1,0 +1,13 @@
+# Dependencies
+node_modules
+
+# Secrets – never commit real connection strings
+.env
+.env.local
+
+# Build output
+dist
+
+# Logs and OS files
+npm-debug.log*
+.DS_Store

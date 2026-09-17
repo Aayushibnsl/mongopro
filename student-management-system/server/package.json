@@ -1,0 +1,21 @@
+{
+  "name": "student-management-server",
+  "version": "1.0.0",
+  "description": "Express + Mongoose backend for the Student Management System (MongoDB practical)",
+  "main": "server.js",
+  "type": "module",
+  "private": true,
+ "scripts": {
+  "start": "NODE_OPTIONS=--dns-result-order=ipv4first node server.js",
+  "dev": "NODE_OPTIONS=--dns-result-order=ipv4first nodemon server.js",
+  "seed": "NODE_OPTIONS=--dns-result-order=ipv4first node seed/seed.js"
+},
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "mongoose": "^9.10.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
+  }
+}
