@@ -70,7 +70,7 @@ app.listen(PORT, (error) => {
       console.error('  On macOS, port 5000 is often used by "AirPlay Receiver".');
       console.error('  Fix: System Settings → General → AirDrop & Handoff → turn off AirPlay Receiver,');
       console.error(
-        '  or set PORT=5001 in server/.env and start the client with BACKEND_URL=http://localhost:5001\n'
+        '  or set PORT=5001 in server/.env and start the client with BACKEND_URL=https://mongopro.vercel.app\n'
       );
     } else {
       console.error(`✖ Server could not start: ${error.message}`);
