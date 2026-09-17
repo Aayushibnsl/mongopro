@@ -29,8 +29,9 @@ The app uses **two** Atlas databases:
 12. [How synchronization works](#how-synchronization-works)
 13. [Verifying the data in MongoDB Atlas](#verifying-the-data-in-mongodb-atlas)
 14. [API reference](#api-reference)
-15. [Troubleshooting](#troubleshooting)
-16. [Future improvements](#future-improvements)
+15. [Deploying to Vercel](#deploying-to-vercel)
+16. [Troubleshooting](#troubleshooting)
+17. [Future improvements](#future-improvements)
 
 ---
 
@@ -280,7 +281,7 @@ You should see:
 ✔ Sir MongoDB connected (database: PCEA24CY002)
 ```
 
-The logs never show connection strings or passwords. If a connection fails, the server prints a hint and retries every 30 seconds.
+The logs never show connection strings or passwords. If a connection fails, the server prints a hint, and the next request tries again (at most once every 15 seconds).
 
 ## Running the frontend
 
@@ -401,6 +402,42 @@ All responses are JSON. Errors always look like `{ "success": false, "message": 
 Create, update and delete responses include a `sync` object:
 `{ "status": "synced" | "skipped" | "failed", "message": "..." }`.
 
+## Deploying to Vercel
+
+The frontend and the backend are deployed as **two separate Vercel projects**.
+
+| Project  | Root Directory                      | Example URL                        |
+| -------- | ----------------------------------- | ---------------------------------- |
+| Backend  | `student-management-system/server`  | https://mongopro.vercel.app        |
+| Frontend | `student-management-system/client`  | https://mongopro-3ip1.vercel.app   |
+
+How it fits together:
+
+- `server/server.js` exports the Express app (`export default app`). On Vercel it does not call `app.listen()`, because Vercel runs the app for each request itself.
+- On Vercel nothing runs "at startup", so the database connects **on the first request** and later requests reuse that connection (`ensurePrimaryConnection()` in `server/config/db.js`).
+- `client/vercel.json` forwards `/api/...` from the frontend to the backend, so the React code still calls `/api` (same as locally). It also sends page URLs like `/students` to `index.html`, so reloading a page works.
+
+**Step 1: add environment variables to the backend project.** Vercel does not read `server/.env`, because that file is never committed. Open Vercel → backend project → **Settings → Environment Variables** and add:
+
+| Name                  | Value                                   |
+| --------------------- | --------------------------------------- |
+| `PRIMARY_MONGODB_URI` | your own Atlas connection string        |
+| `SIR_MONGODB_URI`     | the professor's Atlas connection string |
+
+You don't need `PORT` on Vercel. Tick all environments (Production, Preview, Development).
+
+**Step 2: allow Vercel in Atlas Network Access.** Vercel has no fixed IP address, so a single IP can't be allowed. In Atlas → **Network Access** → **Add IP Address** → **Allow Access from Anywhere** (`0.0.0.0/0`). Do this on your cluster. The professor's cluster needs the same setting for syncing to work from Vercel, and only the professor can change it. Your database user and password still protect the data.
+
+**Step 3: redeploy the backend.** Environment variable changes only apply to new deployments. Use Vercel → Deployments → ⋯ → **Redeploy**, or push a new commit.
+
+**Step 4: check.** Open `https://<backend>/api/database/status`. Both databases should show `"status":"connected"`. If not, the `message` tells you what is missing:
+
+| Status shown     | Meaning                                                      |
+| ---------------- | ------------------------------------------------------------ |
+| `not_configured` | The environment variable isn't set on Vercel (Step 1 + Step 3). |
+| `unavailable`    | Atlas blocked the connection or the credentials are wrong (Step 2). |
+| `database_not_found` | `PCEA24CY002` doesn't exist on the professor's cluster.  |
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -418,6 +455,8 @@ Create, update and delete responses include a `sync` object:
 | `npm run seed` says "Demo data already exists" | This is expected, because the seed never overwrites data. Delete the collections in Atlas first if you really want to reseed. |
 | "A student with Student ID ... already exists" | Student IDs are unique. Use a different ID. |
 | Changes to `.env` aren't picked up | Stop the server (Ctrl + C) and run `npm run dev` again. |
+| Deployed site shows "Primary database is not connected" | See [Deploying to Vercel](#deploying-to-vercel): set the environment variables on the backend project, allow `0.0.0.0/0` in Atlas Network Access, then redeploy. |
+| Reloading a page on Vercel shows 404 | Make sure `client/vercel.json` contains the `/(.*)` → `/index.html` rewrite. |
 
 ## Future improvements
 

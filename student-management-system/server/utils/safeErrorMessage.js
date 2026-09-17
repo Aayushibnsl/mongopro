@@ -33,7 +33,10 @@ export function connectionHint(error) {
     message.includes('timed out') ||
     message.includes('econnrefused')
   ) {
-    return 'In MongoDB Atlas, open Network Access and add your current IP address.';
+    // Vercel has no fixed IP address, so a single IP can't be allowed there
+    return process.env.VERCEL
+      ? 'In MongoDB Atlas → Network Access, allow access from anywhere (0.0.0.0/0) – Vercel has no fixed IP address.'
+      : 'In MongoDB Atlas, open Network Access and add your current IP address.';
   }
   if (message.includes('invalid connection string') || message.includes('unescaped')) {
     return 'If your password contains special characters such as @ : / ? #, URL-encode them (e.g. @ becomes %40).';

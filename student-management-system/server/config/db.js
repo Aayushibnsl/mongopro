@@ -28,10 +28,16 @@ export const sirConnection = mongoose.createConnection();
 // readyState 1 means "connected" in Mongoose
 const CONNECTED = 1;
 
-// Extra information about the professor database that readyState alone can't tell us.
+// After a failed connection attempt, wait this long before trying again
+const RETRY_COOLDOWN_MS = 15000;
+
+// Extra information that readyState alone can't tell us
+const primaryState = {
+  lastErrorHint: '', // why the last connection attempt failed (never contains credentials)
+};
 const sirState = {
-  configured: false, // is SIR_MONGODB_URI filled in?
   databaseFound: false, // does PCEA24CY002 already exist on the professor's cluster?
+  lastErrorHint: '',
 };
 
 /**
@@ -51,11 +57,13 @@ export async function connectPrimary() {
       dbName: PRIMARY_DB_NAME,
       serverSelectionTimeoutMS: 10000,
     });
+    primaryState.lastErrorHint = '';
     console.log(`✔ Primary MongoDB connected (database: ${PRIMARY_DB_NAME})`);
     return 'connected';
   } catch (error) {
+    primaryState.lastErrorHint = connectionHint(error);
     console.error(`✖ Primary MongoDB connection failed: ${safeErrorMessage(error)}`);
-    console.error(`  Hint: ${connectionHint(error)}`);
+    console.error(`  Hint: ${primaryState.lastErrorHint}`);
     return 'failed';
   }
 }
@@ -68,12 +76,9 @@ export async function connectSir() {
   const uri = process.env.SIR_MONGODB_URI;
 
   if (!uri) {
-    sirState.configured = false;
     console.warn('! SIR_MONGODB_URI is empty. Syncing to the professor database is turned off.');
     return 'missing';
   }
-
-  sirState.configured = true;
 
   try {
     await sirConnection.openUri(uri, {
@@ -85,6 +90,7 @@ export async function connectSir() {
     });
 
     await checkSirDatabaseExists();
+    sirState.lastErrorHint = '';
 
     if (sirState.databaseFound) {
       console.log(`✔ Sir MongoDB connected (database: ${SIR_DB_NAME})`);
@@ -96,12 +102,47 @@ export async function connectSir() {
     }
     return 'connected';
   } catch (error) {
+    sirState.lastErrorHint = connectionHint(error);
     console.error(`✖ Sir MongoDB connection failed: ${safeErrorMessage(error)}`);
-    console.error(`  Hint: ${connectionHint(error)}`);
+    console.error(`  Hint: ${sirState.lastErrorHint}`);
     console.error('  The app will keep working with the primary database only.');
     return 'failed';
   }
 }
+
+/*
+ * CONNECTING ON DEMAND (works on your computer AND on Vercel)
+ * -----------------------------------------------------------
+ * On Vercel the backend runs as a serverless function: there is no server that
+ * starts once and keeps running, so "connect at startup" is not enough.
+ * Instead, requests call ensurePrimaryConnection() / ensureSirConnection():
+ *   - the first call opens the connection,
+ *   - later calls reuse the same connection,
+ *   - if connecting failed, we wait RETRY_COOLDOWN_MS before trying again,
+ *     so every request doesn't have to wait for another slow attempt.
+ */
+function connectOnDemand(connect) {
+  let attempt = null; // the current (or the successful) connection attempt
+  let lastFailureAt = 0;
+
+  return async function ensureConnection() {
+    if (attempt) return attempt;
+    if (Date.now() - lastFailureAt < RETRY_COOLDOWN_MS) return 'failed';
+
+    attempt = connect();
+    const result = await attempt;
+
+    if (result !== 'connected') {
+      attempt = null; // allow a new attempt later
+      if (result === 'failed') lastFailureAt = Date.now();
+    }
+    return result;
+  };
+}
+
+// Each returns 'connected', 'failed' or 'missing'
+export const ensurePrimaryConnection = connectOnDemand(connectPrimary);
+export const ensureSirConnection = connectOnDemand(connectSir);
 
 /**
  * MongoDB creates a database automatically the first time you write to it.
@@ -126,7 +167,7 @@ export function isSirConnected() {
 }
 
 export function isSirConfigured() {
-  return sirState.configured;
+  return Boolean(process.env.SIR_MONGODB_URI);
 }
 
 /**
@@ -134,18 +175,31 @@ export function isSirConfigured() {
  * never connection strings, usernames or passwords.
  */
 export function getDatabaseStatus() {
-  const primary = isPrimaryConnected()
-    ? { status: 'connected', message: 'Connected' }
-    : {
-        status: 'unavailable',
-        message: 'Not connected. Check PRIMARY_MONGODB_URI and Atlas Network Access.',
-      };
+  let primary;
+  if (!process.env.PRIMARY_MONGODB_URI) {
+    primary = {
+      status: 'not_configured',
+      message:
+        'PRIMARY_MONGODB_URI is not set. Add it to server/.env (or to your hosting environment variables).',
+    };
+  } else if (!isPrimaryConnected()) {
+    primary = {
+      status: 'unavailable',
+      message: primaryState.lastErrorHint || 'Check PRIMARY_MONGODB_URI and Atlas Network Access.',
+    };
+  } else {
+    primary = { status: 'connected', message: 'Connected' };
+  }
 
   let sir;
-  if (!sirState.configured) {
-    sir = { status: 'not_configured', message: 'SIR_MONGODB_URI is empty, so syncing is turned off.' };
+  if (!isSirConfigured()) {
+    sir = { status: 'not_configured', message: 'SIR_MONGODB_URI is not set, so syncing is turned off.' };
   } else if (!isSirConnected()) {
-    sir = { status: 'unavailable', message: 'Unavailable. Changes are saved to the primary database only.' };
+    sir = {
+      status: 'unavailable',
+      message:
+        `Unavailable – changes are saved to the primary database only. ${sirState.lastErrorHint}`.trim(),
+    };
   } else if (!sirState.databaseFound) {
     sir = {
       status: 'database_not_found',

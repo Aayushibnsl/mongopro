@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import express from 'express';
 
-import { connectPrimary, connectSir, PRIMARY_DB_NAME, SIR_DB_NAME } from './config/db.js';
+import { ensurePrimaryConnection, ensureSirConnection, PRIMARY_DB_NAME, SIR_DB_NAME } from './config/db.js';
 import { requirePrimaryDatabase } from './middleware/requirePrimaryDatabase.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
 import studentRoutes from './routes/studentRoutes.js';
@@ -15,7 +15,6 @@ import databaseRoutes from './routes/databaseRoutes.js';
 dotenv.config({ quiet: true });
 
 const PORT = Number(process.env.PORT) || 5000;
-const RETRY_DELAY_MS = 30000;
 
 const app = express();
 
@@ -53,34 +52,34 @@ app.use('/api/operations', operationRoutes);
 app.use('/api', notFound);
 app.use(errorHandler);
 
-// Try to connect; if Atlas can't be reached (e.g. Network Access not set yet), try again later.
-async function connectWithRetry(connect, label) {
-  const result = await connect();
-  if (result === 'failed') {
-    console.log(`  Retrying ${label} connection in ${RETRY_DELAY_MS / 1000} seconds...`);
-    setTimeout(() => connectWithRetry(connect, label), RETRY_DELAY_MS);
-  }
+// ON YOUR COMPUTER: start a normal server on PORT.
+// ON VERCEL: Vercel runs the exported app for each request itself (see `export default app`),
+// and the database connects on the first request (see config/db.js).
+if (!process.env.VERCEL) {
+  // In Express 5 the listen callback receives an error if the server could not start
+  app.listen(PORT, (error) => {
+    if (error) {
+      if (error.code === 'EADDRINUSE') {
+        console.error(`\n✖ Port ${PORT} is already in use.`);
+        console.error('  On macOS, port 5000 is often used by "AirPlay Receiver".');
+        console.error('  Fix: System Settings → General → AirDrop & Handoff → turn off AirPlay Receiver,');
+        console.error(
+          '  or set PORT=5001 in server/.env and start the client with BACKEND_URL=http://localhost:5001\n'
+        );
+      } else {
+        console.error(`✖ Server could not start: ${error.message}`);
+      }
+      process.exit(1);
+    }
+
+    console.log(`\n🚀 Server running on http://localhost:${PORT}`);
+    console.log(`   Primary database: ${PRIMARY_DB_NAME}   |   Professor database: ${SIR_DB_NAME}\n`);
+
+    // Connect right away so you see the result in the terminal.
+    // If it fails, the next request tries again automatically.
+    ensurePrimaryConnection();
+    ensureSirConnection();
+  });
 }
 
-// In Express 5 the listen callback receives an error if the server could not start
-app.listen(PORT, (error) => {
-  if (error) {
-    if (error.code === 'EADDRINUSE') {
-      console.error(`\n✖ Port ${PORT} is already in use.`);
-      console.error('  On macOS, port 5000 is often used by "AirPlay Receiver".');
-      console.error('  Fix: System Settings → General → AirDrop & Handoff → turn off AirPlay Receiver,');
-      console.error(
-        '  or set PORT=5001 in server/.env and start the client with BACKEND_URL=https://mongopro.vercel.app\n'
-      );
-    } else {
-      console.error(`✖ Server could not start: ${error.message}`);
-    }
-    process.exit(1);
-  }
-
-  console.log(`\n🚀 Server running on http://localhost:${PORT}`);
-  console.log(`   Primary database: ${PRIMARY_DB_NAME}   |   Professor database: ${SIR_DB_NAME}\n`);
-
-  connectWithRetry(connectPrimary, 'Primary MongoDB');
-  connectWithRetry(connectSir, 'Sir MongoDB');
-});
+export default app;

@@ -4,6 +4,7 @@ import {
   SIR_ALLOWED_COLLECTIONS,
   isSirConfigured,
   isSirConnected,
+  ensureSirConnection,
   checkSirDatabaseExists,
 } from '../config/db.js';
 import Student from '../models/Student.js';
@@ -53,7 +54,8 @@ async function checkProfessorDatabase() {
   let reason = null;
 
   if (!isSirConfigured()) reason = 'professor database is not configured';
-  else if (!isSirConnected()) reason = 'professor database is unavailable';
+  else if ((await ensureSirConnection()) !== 'connected' || !isSirConnected())
+    reason = 'professor database is unavailable';
   else if (!(await checkSirDatabaseExists())) reason = `database ${SIR_DB_NAME} was not found`;
 
   return reason ? { status: 'skipped', reason, message: `Saved to primary database only (${reason})` } : null;

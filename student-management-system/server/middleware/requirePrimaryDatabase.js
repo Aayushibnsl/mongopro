@@ -1,13 +1,15 @@
-import { isPrimaryConnected } from '../config/db.js';
+import { ensurePrimaryConnection, getDatabaseStatus } from '../config/db.js';
 
-// Stops API requests early with a clear message when the primary database is not connected,
-// instead of letting them wait and time out.
-export function requirePrimaryDatabase(req, res, next) {
-  if (!isPrimaryConnected()) {
+// Makes sure the primary database is connected before a route runs.
+// The first request opens the connection; later requests reuse it.
+// If it can't connect, the request stops early with a clear message instead of timing out.
+export async function requirePrimaryDatabase(req, res, next) {
+  const result = await ensurePrimaryConnection();
+
+  if (result !== 'connected') {
     return res.status(503).json({
       success: false,
-      message:
-        'Primary database is not connected. Check PRIMARY_MONGODB_URI in server/.env and Atlas Network Access.',
+      message: `Primary database is not connected. ${getDatabaseStatus().primary.message}`,
     });
   }
   next();
