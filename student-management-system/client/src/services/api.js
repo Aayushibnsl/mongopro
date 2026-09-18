@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // All requests go to /api. During development Vite forwards them to the
-// Express server (see vite.config.js). The browser never talks to MongoDB directly.
+// Express server (see vite.config.js). The browser never talks to the data store directly.
 const api = axios.create({
   baseURL: '/api',
   timeout: 20000,
@@ -16,9 +16,9 @@ export function getErrorMessage(error) {
     return 'The server took too long to respond. Please try again.';
   }
 
-  // No response at all, or the Vite proxy could not reach the Express server
+  // No response at all, or the proxy could not reach the API
   if (!error?.response || error.response.status >= 500) {
-    return 'Cannot reach the server. Make sure the backend is running (cd server → npm run dev).';
+    return 'Cannot reach the platform right now. Please check your connection and try again.';
   }
 
   return 'Something went wrong. Please try again.';

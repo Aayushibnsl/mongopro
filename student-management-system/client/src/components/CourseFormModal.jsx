@@ -85,7 +85,7 @@ export default function CourseFormModal({ course, onClose, onSaved }) {
   return (
     <Modal
       title={isEdit ? 'Edit course' : 'Add course'}
-      description="Courses are saved to your database and synced to the professor database."
+      description="Courses are saved immediately and copied to the institutional archive."
       onClose={saving ? () => {} : onClose}
       footer={
         <>

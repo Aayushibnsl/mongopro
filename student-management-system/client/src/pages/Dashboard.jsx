@@ -1,71 +1,68 @@
-import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Award, BookOpen, CalendarCheck, CloudUpload, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, CalendarCheck, RefreshCw, Sparkles, TrendingUp, Users } from 'lucide-react';
 
-import PageHeader from '../components/PageHeader.jsx';
-import StatCard from '../components/StatCard.jsx';
-import ChartCard from '../components/ChartCard.jsx';
-import BranchChart from '../components/BranchChart.jsx';
-import CgpaChart from '../components/CgpaChart.jsx';
-import AttendanceOverview from '../components/AttendanceOverview.jsx';
-import DatabaseStatus from '../components/DatabaseStatus.jsx';
-import ConfirmDialog from '../components/ConfirmDialog.jsx';
+import StatCard from '../components/ui/StatCard.jsx';
+import SectionCard from '../components/ui/SectionCard.jsx';
+import { StatGridSkeleton, TableSkeleton, ListSkeleton, ChartSkeleton } from '../components/ui/Skeleton.jsx';
+import BarList from '../components/charts/BarList.jsx';
+import ColumnChart from '../components/charts/ColumnChart.jsx';
+import InsightCard from '../components/InsightCard.jsx';
 import Avatar from '../components/Avatar.jsx';
-import LoadingState from '../components/LoadingState.jsx';
-import ErrorState from '../components/ErrorState.jsx';
+import AttendanceBadge from '../components/AttendanceBadge.jsx';
 import EmptyState from '../components/EmptyState.jsx';
-import { useToast } from '../components/Toast.jsx';
-import { getDashboard, getDatabaseStatus, syncAllRecords } from '../services/dashboardService.js';
-import { getErrorMessage } from '../services/api.js';
-import { formatCgpa, formatDate, formatPercent } from '../utils/format.js';
+import ErrorState from '../components/ErrorState.jsx';
+import { useAnalytics } from '../hooks/useAnalytics.jsx';
+import { formatCgpa, formatPercent, getGreeting } from '../utils/format.js';
+import { LOW_ATTENDANCE_THRESHOLD } from '../utils/constants.js';
 
 function RecentStudents({ students }) {
   if (students.length === 0) {
     return (
       <EmptyState
         icon={Users}
-        title="No students found."
-        description="Run npm run seed in the server folder, or add a student."
+        title="No students yet"
+        description="Student records will appear here as they are added to the platform."
         action={
           <Link to="/students" className="btn btn-primary">
-            Go to students
+            Add a student
           </Link>
         }
+        compact
       />
     );
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-slate-200">
+    <div className="scroll-x">
+      <table className="min-w-full">
         <thead>
-          <tr>
-            <th className="table-head">Name</th>
-            <th className="table-head">Student ID</th>
-            <th className="table-head">Branch</th>
-            <th className="table-head">Semester</th>
-            <th className="table-head">CGPA</th>
-            <th className="table-head">City</th>
-            <th className="table-head">Added</th>
+          <tr className="border-b border-slate-100">
+            <th className="th">Student</th>
+            <th className="th">Programme</th>
+            <th className="th">CGPA</th>
+            <th className="th">Attendance</th>
           </tr>
         </thead>
-        <tbody className="divide-y divide-slate-100">
+        <tbody className="divide-y divide-slate-50">
           {students.map((student) => (
-            <tr key={student._id}>
-              <td className="table-cell">
-                <div className="flex items-center gap-3">
+            <tr key={student._id} className="transition-colors hover:bg-slate-50/70">
+              <td className="td">
+                <Link to={`/students/${student._id}`} className="flex items-center gap-3">
                   <Avatar name={student.name} />
-                  <span className="font-medium text-slate-900">{student.name}</span>
-                </div>
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium text-slate-900">{student.name}</span>
+                    <span className="block font-mono text-[11px] text-slate-400">{student.studentId}</span>
+                  </span>
+                </Link>
               </td>
-              <td className="table-cell font-mono text-xs">{student.studentId}</td>
-              <td className="table-cell">{student.branch}</td>
-              <td className="table-cell">{student.semester}</td>
-              <td className="table-cell font-medium text-slate-900 tabular-nums">
-                {formatCgpa(student.cgpa)}
+              <td className="td">
+                <span className="block text-slate-700">{student.branch}</span>
+                <span className="block text-[11px] text-slate-400">Semester {student.semester}</span>
               </td>
-              <td className="table-cell">{student.city}</td>
-              <td className="table-cell text-slate-500">{formatDate(student.createdAt)}</td>
+              <td className="td font-medium text-slate-900 tabular-nums">{formatCgpa(student.cgpa)}</td>
+              <td className="td">
+                <AttendanceBadge percentage={student.averageAttendance} />
+              </td>
             </tr>
           ))}
         </tbody>
@@ -75,197 +72,221 @@ function RecentStudents({ students }) {
 }
 
 export default function Dashboard() {
-  const toast = useToast();
+  const { data, loading, refreshing, error, refresh } = useAnalytics();
 
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const today = new Date().toLocaleDateString('en-IN', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
 
-  const [dbStatus, setDbStatus] = useState(null);
-  const [dbStatusError, setDbStatusError] = useState('');
-  const [refreshingStatus, setRefreshingStatus] = useState(false);
+  const header = (
+    <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <h1 className="text-xl font-semibold tracking-tight text-slate-900 sm:text-2xl">{getGreeting()}</h1>
+        <p className="mt-1 text-sm text-slate-500">Here's an overview of your academic environment.</p>
+      </div>
+      <div className="flex items-center gap-3">
+        <span className="hidden text-xs text-slate-400 sm:inline">{today}</span>
+        <button type="button" className="btn btn-secondary" onClick={refresh} disabled={refreshing || loading}>
+          <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
+    </div>
+  );
 
-  const [confirmSyncAll, setConfirmSyncAll] = useState(false);
-  const [syncingAll, setSyncingAll] = useState(false);
-
-  const loadStats = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      const response = await getDashboard();
-      setStats(response.data);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const loadStatus = useCallback(async () => {
-    setRefreshingStatus(true);
-    try {
-      const response = await getDatabaseStatus();
-      setDbStatus(response.data);
-      setDbStatusError('');
-    } catch (err) {
-      setDbStatus(null);
-      setDbStatusError(getErrorMessage(err));
-    } finally {
-      setRefreshingStatus(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadStats();
-    loadStatus();
-  }, [loadStats, loadStatus]);
-
-  function refreshAll() {
-    loadStats();
-    loadStatus();
+  if (error && !data) {
+    return (
+      <>
+        {header}
+        <div className="card">
+          <ErrorState title="Could not load your dashboard" message={error} onRetry={refresh} />
+        </div>
+      </>
+    );
   }
 
-  async function handleSyncAll() {
-    setSyncingAll(true);
-    try {
-      const response = await syncAllRecords();
-      toast.success('Synced with professor database', response.message);
-    } catch (err) {
-      toast.error('Professor database synchronization failed', getErrorMessage(err));
-    } finally {
-      setSyncingAll(false);
-      setConfirmSyncAll(false);
-      loadStatus();
-    }
+  if (loading || !data) {
+    return (
+      <>
+        {header}
+        <div className="space-y-5">
+          <StatGridSkeleton />
+          <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+            <SectionCard title="Attendance by course" className="lg:col-span-2">
+              <ListSkeleton rows={4} />
+            </SectionCard>
+            <SectionCard title="Academic performance">
+              <ChartSkeleton />
+            </SectionCard>
+          </div>
+          <div className="card">
+            <TableSkeleton rows={5} columns={5} />
+          </div>
+        </div>
+      </>
+    );
   }
+
+  const { overview, attendance, performance, insights, recentStudents } = data;
+
+  const highAchievers = performance.bands
+    .filter((band) => band.label.startsWith('8') || band.label.startsWith('9'))
+    .reduce((sum, band) => sum + band.count, 0);
+
+  const courseBars = attendance.byCourse
+    .filter((course) => course.averageAttendance != null)
+    .slice(0, 6)
+    .map((course) => ({
+      id: course.courseId,
+      label: course.courseName,
+      value: course.averageAttendance,
+      note: `${course.enrolled} enrolled`,
+      fill: course.averageAttendance < LOW_ATTENDANCE_THRESHOLD ? 'bg-status-critical' : 'bg-brand-600',
+      tooltip: `${course.courseName}: ${formatPercent(course.averageAttendance)} average attendance across ${course.enrolled} students`,
+    }));
 
   return (
     <>
-      <PageHeader
-        title="Dashboard"
-        description="An overview of the students, courses and attendance stored in MongoDB Atlas."
-      />
+      {header}
 
-      <div className="space-y-6">
-        <DatabaseStatus
-          status={dbStatus}
-          error={dbStatusError}
-          refreshing={refreshingStatus}
-          syncing={syncingAll}
-          onRefresh={refreshAll}
-          onSyncAll={() => setConfirmSyncAll(true)}
-        />
+      <div className={`space-y-5 transition-opacity ${refreshing ? 'opacity-60' : ''}`}>
+        {/* Headline figures */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <StatCard
+            label="Total students"
+            value={overview.totalStudents}
+            indicator={
+              overview.branches > 0
+                ? `Across ${overview.branches} ${overview.branches === 1 ? 'branch' : 'branches'}`
+                : 'No branches recorded'
+            }
+            icon={Users}
+          />
+          <StatCard
+            label="Active courses"
+            value={overview.totalCourses}
+            indicator={`${overview.coursesWithAttendance} with attendance recorded`}
+            icon={BookOpen}
+          />
+          <StatCard
+            label="Average attendance"
+            value={formatPercent(overview.averageAttendance)}
+            indicator={
+              overview.studentsAtRisk > 0
+                ? `${overview.studentsAtRisk} below the ${LOW_ATTENDANCE_THRESHOLD}% requirement`
+                : overview.studentsTracked > 0
+                  ? 'All tracked students meet the requirement'
+                  : 'No attendance recorded yet'
+            }
+            indicatorTone={overview.studentsAtRisk > 0 ? 'critical' : 'good'}
+            icon={CalendarCheck}
+          />
+          <StatCard
+            label="Academic performance"
+            value={overview.averageCgpa == null ? '—' : `${formatCgpa(overview.averageCgpa)}`}
+            indicator={
+              overview.totalStudents > 0
+                ? `${highAchievers} of ${overview.totalStudents} at 8.0 CGPA or above`
+                : 'No grades recorded'
+            }
+            icon={TrendingUp}
+          />
+        </div>
 
-        {loading && !stats && (
-          <div className="card">
-            <LoadingState message="Loading dashboard..." />
-          </div>
-        )}
-
-        {!loading && error && (
-          <div className="card">
-            <ErrorState title="Could not load the dashboard" message={error} onRetry={refreshAll} />
-          </div>
-        )}
-
-        {stats && !error && (
-          <>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <StatCard
-                label="Total Students"
-                value={stats.totalStudents}
-                hint="Documents in students"
-                icon={Users}
-              />
-              <StatCard
-                label="Total Courses"
-                value={stats.totalCourses}
-                hint="Documents in courses"
-                icon={BookOpen}
-              />
-              <StatCard
-                label="Average CGPA"
-                value={formatCgpa(stats.averageCgpa)}
-                hint="Calculated with $avg"
-                icon={Award}
-              />
-              <StatCard
-                label="Average Attendance"
-                value={formatPercent(stats.averageAttendance)}
-                hint={`Across ${stats.totalAttendanceRecords} attendance records`}
-                icon={CalendarCheck}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-              <ChartCard
-                title="Branch distribution"
-                description="Students per branch"
-                footer="Grouped with the aggregation stage $group."
+        {/* Analytics */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <SectionCard
+            title="Attendance by course"
+            subtitle={`Average attendance per course · ${LOW_ATTENDANCE_THRESHOLD}% required`}
+            className="lg:col-span-2"
+            action={
+              <Link
+                to="/attendance"
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
               >
-                <BranchChart branches={stats.branchDistribution} totalStudents={stats.totalStudents} />
-              </ChartCard>
-              <ChartCard
-                title="CGPA overview"
-                description="Number of students in each CGPA range"
-                footer="Counted with countDocuments() and the $gte / $lt operators."
-              >
-                <CgpaChart bands={stats.cgpaOverview} />
-              </ChartCard>
-              <ChartCard
-                title="Attendance overview"
-                description="Attendance records grouped by percentage"
-                footer="Each record is one student's attendance in one course."
-              >
-                <AttendanceOverview
-                  bands={stats.attendanceOverview}
-                  totalRecords={stats.totalAttendanceRecords}
-                />
-              </ChartCard>
-            </div>
+                View all
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            }
+          >
+            <BarList
+              items={courseBars}
+              max={100}
+              formatValue={(value) => formatPercent(value)}
+              emptyMessage="No attendance has been recorded against any course yet."
+            />
+          </SectionCard>
 
-            <section className="card">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <div>
-                  <h2 className="text-sm font-semibold text-slate-900">Recent students</h2>
-                  <p className="mt-0.5 text-xs text-slate-500">The 5 newest documents, sorted by createdAt</p>
-                </div>
-                <Link
-                  to="/students"
-                  className="flex shrink-0 items-center gap-1 text-sm font-medium whitespace-nowrap text-brand-700 hover:text-brand-800"
-                >
-                  View all
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
+          <SectionCard
+            title="Academic performance"
+            subtitle="Students by CGPA band"
+            action={
+              <Link
+                to="/performance"
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+              >
+                Details
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            }
+          >
+            <ColumnChart bands={performance.bands} emptyMessage="No student grades recorded yet." />
+          </SectionCard>
+        </div>
+
+        {/* Recent activity and derived alerts */}
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <SectionCard
+            title="Recently added students"
+            subtitle="The newest records on the platform"
+            className="lg:col-span-2"
+            flush
+            action={
+              <Link
+                to="/students"
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+              >
+                All students
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            }
+          >
+            <RecentStudents students={recentStudents} />
+          </SectionCard>
+
+          <SectionCard
+            title="Academic alerts"
+            subtitle="Derived from your current records"
+            action={
+              <Link
+                to="/insights"
+                className="flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700"
+              >
+                All insights
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            }
+          >
+            {insights.length === 0 ? (
+              <EmptyState
+                icon={Sparkles}
+                title="Nothing needs attention"
+                description="Insights appear here as students, courses and attendance build up."
+                compact
+              />
+            ) : (
+              <div className="space-y-5">
+                {insights.slice(0, 4).map((insight) => (
+                  <InsightCard key={insight.id} insight={insight} compact />
+                ))}
               </div>
-              <RecentStudents students={stats.recentStudents} />
-            </section>
-          </>
-        )}
+            )}
+          </SectionCard>
+        </div>
       </div>
-
-      {confirmSyncAll && (
-        <ConfirmDialog
-          title="Sync all records to the professor database?"
-          variant="primary"
-          icon={CloudUpload}
-          confirmLabel="Sync all records"
-          loadingLabel="Syncing..."
-          loading={syncingAll}
-          onConfirm={handleSyncAll}
-          onCancel={() => setConfirmSyncAll(false)}
-          message={
-            <>
-              <p>
-                Every student, course and attendance record in{' '}
-                <span className="font-mono">student_management</span> will be copied to{' '}
-                <span className="font-mono">PCEA24CY002</span>.
-              </p>
-              <p>Existing copies are updated, no duplicates are created, and nothing is deleted.</p>
-            </>
-          }
-        />
-      )}
     </>
   );
 }

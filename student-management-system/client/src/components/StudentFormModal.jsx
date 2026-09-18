@@ -24,7 +24,7 @@ const EMPTY_STUDENT = {
   address: '',
 };
 
-// Numbers from the database become strings so they work in <input> fields
+// Stored numbers become strings so they work in <input> fields
 function toFormValues(student) {
   const values = { ...EMPTY_STUDENT };
   for (const key of Object.keys(EMPTY_STUDENT)) {
@@ -90,7 +90,7 @@ export default function StudentFormModal({ student, cities = [], onClose, onSave
       const response = isEdit ? await updateStudent(student._id, payload) : await createStudent(payload);
 
       toast.success(response.message); // "Student added successfully" / "Student updated successfully"
-      toast.sync(response.sync); // result of copying the change to the professor database
+      toast.sync(response.sync); // whether the institutional archive received the change
       onSaved(response.data);
     } catch (error) {
       const message = getErrorMessage(error);
@@ -105,8 +105,8 @@ export default function StudentFormModal({ student, cities = [], onClose, onSave
       title={isEdit ? 'Edit student' : 'Add student'}
       description={
         isEdit
-          ? 'Changes are saved to your database and synced to the professor database.'
-          : 'The new student is saved to your database and synced to the professor database.'
+          ? 'Changes are saved immediately and copied to the institutional archive.'
+          : 'The new student is saved immediately and copied to the institutional archive.'
       }
       onClose={saving ? () => {} : onClose}
       footer={

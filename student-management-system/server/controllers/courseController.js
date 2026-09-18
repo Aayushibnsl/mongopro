@@ -1,7 +1,7 @@
 import Course from '../models/Course.js';
-import Attendance from '../models/Attendance.js';
+import Attendance, { LOW_ATTENDANCE_THRESHOLD } from '../models/Attendance.js';
 import { syncCourseCreate, syncCourseUpdate, syncCourseDelete } from '../services/syncService.js';
-import { pickFields, escapeRegex, readString } from '../utils/helpers.js';
+import { pickFields, escapeRegex, readString, roundTo2 } from '../utils/helpers.js';
 
 // courseId is the stable ID, so it can only be set when the course is created
 const EDITABLE_FIELDS = ['courseName', 'courseCode', 'credits', 'faculty', 'semester', 'department'];
@@ -24,7 +24,34 @@ export async function getCourses(req, res) {
 
   const courses = await Course.find(filter).sort({ semester: 1, courseId: 1 }).lean();
 
-  res.json({ success: true, data: courses, count: courses.length });
+  // Enrolment and attendance summary per course, so the Courses screen can show
+  // how each course is actually performing rather than just its definition.
+  const summaries = await Attendance.aggregate([
+    { $match: { courseId: { $in: courses.map((course) => course.courseId) } } },
+    {
+      $group: {
+        _id: '$courseId',
+        enrolled: { $sum: 1 },
+        averageAttendance: { $avg: '$percentage' },
+        atRisk: { $sum: { $cond: [{ $lt: ['$percentage', LOW_ATTENDANCE_THRESHOLD] }, 1, 0] } },
+      },
+    },
+  ]);
+  const summaryByCourseId = new Map(summaries.map((item) => [item._id, item]));
+
+  res.json({
+    success: true,
+    data: courses.map((course) => {
+      const summary = summaryByCourseId.get(course.courseId);
+      return {
+        ...course,
+        enrolled: summary?.enrolled ?? 0,
+        averageAttendance: summary ? roundTo2(summary.averageAttendance) : null,
+        atRisk: summary?.atRisk ?? 0,
+      };
+    }),
+    count: courses.length,
+  });
 }
 
 // READ ONE – GET /api/courses/:id

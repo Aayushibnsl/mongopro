@@ -1,7 +1,7 @@
 {
-  "name": "student-management-client",
+  "name": "scholaris-client",
   "version": "1.0.0",
-  "description": "React + Vite + Tailwind frontend for the Student Management System",
+  "description": "React + Vite + Tailwind frontend for Scholaris",
   "private": true,
   "type": "module",
   "scripts": {

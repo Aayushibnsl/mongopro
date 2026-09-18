@@ -1,7 +1,7 @@
 {
-  "name": "student-management-server",
+  "name": "scholaris-server",
   "version": "1.0.0",
-  "description": "Express + Mongoose backend for the Student Management System (MongoDB practical)",
+  "description": "Express + Mongoose API for Scholaris, a student management and academic intelligence platform",
   "main": "server.js",
   "type": "module",
   "private": true,

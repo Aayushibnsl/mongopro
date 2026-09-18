@@ -7,7 +7,7 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 import studentRoutes from './routes/studentRoutes.js';
 import courseRoutes from './routes/courseRoutes.js';
 import attendanceRoutes from './routes/attendanceRoutes.js';
-import operationRoutes from './routes/operationRoutes.js';
+import analyticsRoutes from './routes/analyticsRoutes.js';
 import dashboardRoutes from './routes/dashboardRoutes.js';
 import databaseRoutes from './routes/databaseRoutes.js';
 
@@ -33,7 +33,7 @@ app.use('/api', (req, res, next) => {
 app.get('/', (req, res) => {
   res.json({
     success: true,
-    message: 'Student Management System API is running. Open http://localhost:5173 for the app.',
+    message: 'Academic Intelligence Platform API is running. Open http://localhost:5173 for the app.',
   });
 });
 
@@ -44,10 +44,10 @@ app.use('/api/database', databaseRoutes);
 // Every route below needs the primary database
 app.use('/api', requirePrimaryDatabase);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/students', studentRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/attendance', attendanceRoutes);
-app.use('/api/operations', operationRoutes);
 
 app.use('/api', notFound);
 app.use(errorHandler);

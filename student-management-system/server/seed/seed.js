@@ -1,12 +1,16 @@
 /*
  * Seed script – run with:  npm run seed
  *
- * Fills the PRIMARY database (student_management) with demo students, courses
- * and attendance. It never overwrites anything: if any of the three collections
- * already has documents, it stops without changing data.
+ * Fills the PRIMARY database (student_management) with the demo students,
+ * courses and attendance records in demoData.js.
+ *
+ * It is ADDITIVE and safe to run more than once: records that already exist
+ * (matched on studentId / courseId / studentId+courseId) are left exactly as
+ * they are, and only the missing ones are inserted. Nothing is ever deleted or
+ * overwritten, so records you added through the app are never touched.
  *
  * The professor database is NOT touched here. It only receives records through
- * actions you take in the app.
+ * actions you take in the app (or the "Sync all records" button in Settings).
  */
 import dotenv from 'dotenv';
 
@@ -19,6 +23,26 @@ import { safeErrorMessage } from '../utils/safeErrorMessage.js';
 
 dotenv.config({ quiet: true });
 
+/**
+ * Inserts only the demo records whose key is not already in the collection.
+ * `keyOf` turns a record into the string that identifies it.
+ */
+async function insertMissing(label, Model, demoRecords, keyOf) {
+  const existing = await Model.find({}).lean();
+  const existingKeys = new Set(existing.map(keyOf));
+
+  const missing = demoRecords.filter((record) => !existingKeys.has(keyOf(record)));
+
+  if (missing.length === 0) {
+    console.log(`• ${label}: nothing to add (${existing.length} already present)`);
+    return 0;
+  }
+
+  await Model.insertMany(missing);
+  console.log(`✔ ${label}: added ${missing.length} (${existing.length} already present)`);
+  return missing.length;
+}
+
 async function seed() {
   const result = await connectPrimary();
   if (result !== 'connected') {
@@ -29,30 +53,24 @@ async function seed() {
   // Build the unique indexes first (unique studentId, courseId, studentId + courseId)
   await Promise.all([Student.init(), Course.init(), Attendance.init()]);
 
-  const [studentCount, courseCount, attendanceCount] = await Promise.all([
-    Student.countDocuments(),
-    Course.countDocuments(),
-    Attendance.countDocuments(),
-  ]);
+  console.log(`\nSeeding ${PRIMARY_DB_NAME} — existing records are never changed.\n`);
 
-  if (studentCount > 0 || courseCount > 0 || attendanceCount > 0) {
-    console.log('Demo data already exists');
-    console.log(`  students: ${studentCount}, courses: ${courseCount}, attendance: ${attendanceCount}`);
-    console.log('Nothing was overwritten');
-    return;
-  }
+  const added =
+    (await insertMissing('Students', Student, demoStudents, (record) => record.studentId)) +
+    (await insertMissing('Courses', Course, demoCourses, (record) => record.courseId)) +
+    // Attendance is identified by the student and the course together
+    (await insertMissing(
+      'Attendance',
+      Attendance,
+      demoAttendance,
+      (record) => `${record.studentId}::${record.courseId}`
+    ));
 
-  // insertMany() adds many documents in one command (validation still runs)
-  const students = await Student.insertMany(demoStudents);
-  console.log(`✔ Inserted ${students.length} documents into ${PRIMARY_DB_NAME}.students`);
-
-  const courses = await Course.insertMany(demoCourses);
-  console.log(`✔ Inserted ${courses.length} documents into ${PRIMARY_DB_NAME}.courses`);
-
-  const attendance = await Attendance.insertMany(demoAttendance);
-  console.log(`✔ Inserted ${attendance.length} documents into ${PRIMARY_DB_NAME}.attendance`);
-
-  console.log('\nDemo data is ready. The professor database was not changed.');
+  console.log(
+    added === 0
+      ? '\nEverything in the demo set is already in the database. Nothing was changed.'
+      : `\nDone — ${added} new ${added === 1 ? 'record' : 'records'} added. The professor database was not changed.`
+  );
 }
 
 seed()

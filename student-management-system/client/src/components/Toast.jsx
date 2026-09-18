@@ -6,7 +6,7 @@ import { CheckCircle2, Info, TriangleAlert, X, XCircle } from 'lucide-react';
  * Usage inside any component:
  *   const toast = useToast();
  *   toast.success('Student added successfully');
- *   toast.sync(response.sync);   // shows the professor-database sync result
+ *   toast.sync(response.sync);   // reports the institutional archive sync result
  */
 
 const ToastContext = createContext(null);
@@ -43,18 +43,18 @@ export function ToastProvider({ children }) {
       warning: (title, description) => show('warning', title, description),
       info: (title, description) => show('info', title, description),
 
-      // Every create / update / delete response contains a "sync" object from the server
+      // Every create / update / delete response reports whether the archive copy succeeded
       sync: (sync) => {
         if (!sync) return;
         if (sync.status === 'synced') {
-          show('success', 'Synced with professor database', 'PCEA24CY002 has the same change.');
+          show('success', 'Archive updated', 'The institutional archive has the same change.');
         } else if (sync.status === 'skipped') {
-          show('warning', 'Not synced to professor database', sync.message);
+          show('warning', 'Archive not updated', sync.message);
         } else {
           show(
             'error',
-            'Professor database synchronization failed',
-            'Your change is safely saved in the primary database.'
+            'Archive synchronisation failed',
+            'Your change is safely saved and will sync on the next attempt.'
           );
         }
       },

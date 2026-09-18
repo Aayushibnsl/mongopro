@@ -1,37 +1,27 @@
-import { TriangleAlert } from 'lucide-react';
-
 import { formatPercent, getAttendanceStatus } from '../utils/format.js';
 
-// A small progress bar + percentage. Low attendance also gets a "Low" label,
-// so the meaning never depends on colour alone.
-export default function AttendanceBadge({ percentage, barWidth = 'w-16' }) {
+/*
+ * A compact attendance reading: a thin bar, the percentage, and — when the
+ * student is below the requirement — a written "At risk" label, so the state is
+ * never communicated by colour alone.
+ */
+export default function AttendanceBadge({ percentage, barWidth = 'w-16', showLabel = true }) {
   if (percentage == null) {
-    return <span className="text-sm text-slate-400">No records</span>;
+    return <span className="text-sm text-slate-400">Not tracked</span>;
   }
 
   const status = getAttendanceStatus(percentage);
-  const isLow = status.key === 'low';
 
   return (
-    <div
-      className="flex items-center gap-2.5"
-      title={`${formatPercent(percentage)} – ${status.label} attendance`}
-    >
-      <div className={`h-1.5 overflow-hidden rounded-full bg-slate-100 ${barWidth}`}>
+    <div className="flex items-center gap-2.5" title={`${formatPercent(percentage)} — ${status.label}`}>
+      <div className={`h-1.5 shrink-0 overflow-hidden rounded-full bg-slate-100 ${barWidth}`}>
         <div
-          className={`h-full rounded-full ${status.barClass}`}
+          className={`h-full rounded-r-full ${status.fill}`}
           style={{ width: `${Math.min(percentage, 100)}%` }}
         />
       </div>
-      <span className={`text-sm font-medium tabular-nums ${isLow ? 'text-red-700' : 'text-slate-900'}`}>
-        {formatPercent(percentage)}
-      </span>
-      {isLow && (
-        <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-1.5 py-0.5 text-[11px] font-medium text-red-700 ring-1 ring-red-600/15 ring-inset">
-          <TriangleAlert className="h-3 w-3" />
-          Low
-        </span>
-      )}
+      <span className="text-sm font-medium text-slate-900 tabular-nums">{formatPercent(percentage)}</span>
+      {showLabel && status.key === 'low' && <span className="badge badge-critical">At risk</span>}
     </div>
   );
 }

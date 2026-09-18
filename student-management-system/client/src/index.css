@@ -1,29 +1,41 @@
 @import 'tailwindcss';
 
+/* ==========================================================================
+   Design system
+   One accent (indigo), neutral slate surfaces, a reserved status palette.
+   Status colours always ship with an icon or a text label, never colour alone.
+   ========================================================================== */
+
 @theme {
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 
-  /* The one accent colour: a calm MongoDB-style green */
-  --color-brand-50: #effaf5;
-  --color-brand-100: #d7f2e4;
-  --color-brand-200: #b1e4cb;
-  --color-brand-300: #7fcfaa;
-  --color-brand-400: #3fb481;
-  --color-brand-500: #149a64;
-  --color-brand-600: #0b7d52;
-  --color-brand-700: #00684a;
-  --color-brand-800: #075440;
-  --color-brand-900: #073f31;
+  /* Accent — the single brand colour */
+  --color-brand-50: #eef2ff;
+  --color-brand-100: #e0e7ff;
+  --color-brand-200: #c7d2fe;
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+  --color-brand-800: #3730a3;
+  --color-brand-900: #312e81;
 
-  /* Status colours (always shown together with an icon or a text label) */
+  /* Status — fixed, never used for identity/series */
   --color-status-good: #0ca30c;
   --color-status-warning: #fab219;
   --color-status-critical: #d03b3b;
 
-  --animate-fade-in: fade-in 150ms ease-out;
-  --animate-modal-in: modal-in 180ms ease-out;
-  --animate-toast-in: toast-in 200ms ease-out;
+  /* Chart chrome */
+  --color-grid: #e2e8f0;
+
+  --radius-card: 0.875rem;
+
+  --animate-fade-in: fade-in 160ms ease-out;
+  --animate-rise: rise 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-modal-in: modal-in 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-toast-in: toast-in 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
 
   @keyframes fade-in {
     from {
@@ -33,10 +45,20 @@
       opacity: 1;
     }
   }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
   @keyframes modal-in {
     from {
       opacity: 0;
-      transform: translateY(8px) scale(0.98);
+      transform: translateY(10px) scale(0.985);
     }
     to {
       opacity: 1;
@@ -46,58 +68,151 @@
   @keyframes toast-in {
     from {
       opacity: 0;
-      transform: translateY(-6px);
+      transform: translateY(-8px);
     }
     to {
       opacity: 1;
       transform: translateY(0);
     }
   }
+  @keyframes shimmer {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.45;
+    }
+  }
 }
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  /* One consistent focus ring everywhere */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-500/60 ring-offset-2 ring-offset-white;
+  }
+
+  ::selection {
+    @apply bg-brand-100 text-brand-900;
+  }
+
+  /* Respect the reader's motion preference */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
-/* Small reusable classes so the JSX stays readable */
 @layer components {
+  /* ---------- Surfaces ---------- */
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-card border border-slate-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.04)];
   }
 
+  .card-hover {
+    @apply transition-all duration-200 hover:border-slate-300 hover:shadow-[0_4px_16px_rgba(15,23,42,0.07)];
+  }
+
+  /* ---------- Buttons ---------- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-60;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium whitespace-nowrap transition-all duration-150 disabled:pointer-events-none disabled:opacity-50;
   }
   .btn-primary {
-    @apply bg-brand-700 text-white shadow-sm hover:bg-brand-800;
+    @apply bg-brand-600 text-white shadow-[0_1px_2px_rgba(79,70,229,0.3)] hover:bg-brand-700 active:bg-brand-800;
   }
   .btn-secondary {
-    @apply border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900;
+    @apply border border-slate-200 bg-white text-slate-700 shadow-[0_1px_2px_rgba(15,23,42,0.04)] hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900;
+  }
+  .btn-ghost {
+    @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900;
   }
   .btn-danger {
-    @apply bg-red-600 text-white shadow-sm hover:bg-red-700;
+    @apply bg-status-critical text-white shadow-[0_1px_2px_rgba(208,59,59,0.3)] hover:brightness-95;
+  }
+  .btn-sm {
+    @apply px-2.5 py-1.5 text-xs;
   }
 
   .icon-btn {
-    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none;
+    @apply inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700;
   }
 
+  /* ---------- Forms ---------- */
   .input {
-    @apply block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500;
+    @apply block w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition placeholder:text-slate-400 focus:border-brand-400 focus:ring-4 focus:ring-brand-500/10 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400;
   }
   .input-error {
-    @apply border-red-400 focus:border-red-500 focus:ring-red-500/20;
+    @apply border-status-critical/60 focus:border-status-critical focus:ring-status-critical/10;
   }
   .label {
-    @apply mb-1.5 block text-sm font-medium text-slate-700;
+    @apply mb-1.5 block text-[13px] font-medium text-slate-700;
   }
 
-  .table-head {
-    @apply px-4 py-3 text-left text-xs font-semibold tracking-wide whitespace-nowrap text-slate-500 uppercase;
+  /* ---------- Tables ---------- */
+  .th {
+    @apply px-4 py-2.5 text-left text-[11px] font-semibold tracking-wider whitespace-nowrap text-slate-500 uppercase;
   }
-  .table-cell {
-    @apply px-4 py-3 text-sm whitespace-nowrap text-slate-700;
+  .td {
+    @apply px-4 py-3 text-sm whitespace-nowrap text-slate-600;
+  }
+
+  /* ---------- Badges ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset;
+  }
+  .badge-neutral {
+    @apply bg-slate-50 text-slate-600 ring-slate-200;
+  }
+  .badge-brand {
+    @apply bg-brand-50 text-brand-700 ring-brand-200;
+  }
+  .badge-good {
+    @apply bg-emerald-50 text-emerald-800 ring-emerald-600/20;
+  }
+  .badge-warning {
+    @apply bg-amber-50 text-amber-900 ring-amber-600/25;
+  }
+  .badge-critical {
+    @apply bg-red-50 text-red-800 ring-red-600/20;
+  }
+
+  /* ---------- Misc ---------- */
+  .skeleton {
+    @apply animate-shimmer rounded-md bg-slate-100;
+  }
+
+  .section-title {
+    @apply text-sm font-semibold tracking-tight text-slate-900;
+  }
+  .section-subtitle {
+    @apply mt-0.5 text-xs text-slate-500;
+  }
+}
+
+@layer utilities {
+  /* Keeps long tables usable on mobile without a page-level horizontal scroll */
+  .scroll-x {
+    @apply overflow-x-auto;
+    scrollbar-width: thin;
+  }
+  .scroll-x::-webkit-scrollbar {
+    height: 6px;
+  }
+  .scroll-x::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-slate-200;
   }
 }
